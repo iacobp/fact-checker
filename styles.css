@@ -1,0 +1,97 @@
+body {
+  width: 350px;
+  padding: 20px;
+  font-family: 'Arial', sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+}
+
+h1 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #4CAF50;
+  text-align: center;
+}
+
+#apiKeySection {
+  background-color: #fff;
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 350px;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+input[type="text"] {
+  width: 100%;
+  max-width: 300px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+button {
+  width: 100%;
+  max-width: 300px;
+  padding: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  text-align: center;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+#status {
+  margin-top: 20px;
+  font-style: italic;
+  text-align: center;
+}
+
+#status.success {
+  color: #4CAF50;
+}
+
+#status.error {
+  color: #f44336;
+}
+
+#apiKeySection:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
