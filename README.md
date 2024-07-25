@@ -9,12 +9,12 @@ This Chrome extension allows Perplexity Pro users to fact-check any text on the 
 - 🔍 Fact-check any selected text on any webpage
 - 📊 Get a truth percentage for the selected statement
 - ✅ Receive a concise fact-check summary
-- 🌐 See the statement in broader context
+- 🌐 See the statement in a broader context
 - 📚 Access sources for further reading
 
 ## Installation
 
-1. Download the extension from [Chrome Web Store Link]
+1. Download the extension from https://chromewebstore.google.com/detail/fact-checker/olfaipihfeomkedngnkkmappbojmlmml
 2. Click on the extension icon in your Chrome toolbar
 3. Enter your Perplexity API key in the extension settings
 
@@ -24,9 +24,6 @@ This Chrome extension allows Perplexity Pro users to fact-check any text on the 
 2. Right-click and select "Fact check with AI"
 3. View the results in a pop-up window
 
-## Demo
-
-[Include a link to your demo video or GIF here]
 
 ## Credit Usage
 
@@ -43,7 +40,7 @@ Tips to maximize your credit:
 
 ## Development
 
-This extension is built using JavaScript, HTML, and CSS. It uses the Chrome Extension API and the Perplexity API for fact-checking.
+This extension is built using JavaScript, HTML, and CSS. It uses the the Perplexity API for fact-checking.
 
 To set up the development environment:
 
@@ -58,7 +55,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License 
 
 ## Feedback
 
