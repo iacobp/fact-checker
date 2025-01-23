@@ -78,7 +78,7 @@ async function factCheckWithAI(text, contextText, url, apiKey) {
       'authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'llama-3-sonar-small-32k-online',
+      model: 'sonar',
       messages: [
         { role: 'system', content: `You are a multilingual fact-checking assistant. Your primary tasks are:
 
