@@ -52,3 +52,8 @@ Pino fact-checks user-selected claims with Perplexity and displays the supportin
 - Updated to Perplexity's canonical Sonar endpoint and structured output.
 - Uses Perplexity search results for source URLs.
 - Added clear privacy and terms pages.
+
+## Legal URLs
+
+- Privacy Policy: https://pino-fact-checker-legal.vercel.app/privacy.html
+- Terms of Use: https://pino-fact-checker-legal.vercel.app/terms.html

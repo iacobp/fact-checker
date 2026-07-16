@@ -22,7 +22,7 @@ Pino uses Perplexity's `sonar` model by default. Users can choose `sonar-pro` fo
 - Pino has no analytics, developer backend, advertising, email collection, or remote fact-check history.
 - Results are rendered with DOM text nodes and source URLs returned by Perplexity's `search_results` field.
 
-Read the [Privacy Policy](legal/privacy.html) and [Terms of Use](legal/terms.html).
+Read the public [Privacy Policy](https://pino-fact-checker-legal.vercel.app/privacy.html) and [Terms of Use](https://pino-fact-checker-legal.vercel.app/terms.html). The same pages are bundled with the extension for offline access.
 
 ## Important limitation
 
