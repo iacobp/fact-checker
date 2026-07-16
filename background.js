@@ -1,128 +1,205 @@
-chrome.runtime.onInstalled.addListener(() => {
+import {
+  buildFactCheckRequest,
+  createApiError,
+  normalizeText,
+  parseFactCheckResponse,
+} from './core.js';
+
+const API_URL = 'https://api.perplexity.ai/v1/sonar';
+const API_KEY_STORAGE_KEY = 'perplexityApiKey';
+const MODEL_STORAGE_KEY = 'perplexityModel';
+const MENU_ID = 'pinoFactCheck';
+const REQUEST_TIMEOUT_MS = 60_000;
+
+const LEGACY_SYNC_KEYS = [
+  'advancedSearchesThisMonth',
+  'credits',
+  'domainFilters',
+  'freeSearchesLeft',
+  'hasPurchasedPerplexityUnlock',
+  'isSubscribed',
+  'language',
+  'perplexityApiKey',
+  'perplexityApiKeyEnabled',
+  'searchMode',
+  'subscriptionData',
+  'theme',
+  'trialExpired',
+  'userId',
+];
+
+const LEGACY_LOCAL_KEYS = [
+  'currentUser',
+  'factChecks',
+  'lastSessionUpdate',
+  'stripePortalLastAccessed',
+  'supabaseSession',
+  'userProfile',
+];
+
+async function restrictLocalStorageAccess() {
+  try {
+    await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  } catch {
+    // Older Chromium versions do not expose setAccessLevel. The extension still
+    // works, but current Chrome versions should always take this path.
+  }
+}
+
+async function migrateLegacySettings() {
+  const [localData, syncData] = await Promise.all([
+    chrome.storage.local.get([API_KEY_STORAGE_KEY, MODEL_STORAGE_KEY]),
+    chrome.storage.sync.get(['perplexityApiKey', 'searchMode']),
+  ]);
+
+  const updates = {};
+  if (!localData[API_KEY_STORAGE_KEY] && typeof syncData.perplexityApiKey === 'string') {
+    const legacyKey = syncData.perplexityApiKey.trim();
+    if (legacyKey) updates[API_KEY_STORAGE_KEY] = legacyKey;
+  }
+
+  if (!localData[MODEL_STORAGE_KEY]) {
+    updates[MODEL_STORAGE_KEY] = syncData.searchMode === 'advanced' ? 'sonar-pro' : 'sonar';
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.local.set(updates);
+  }
+
+  await Promise.all([
+    chrome.storage.sync.remove(LEGACY_SYNC_KEYS),
+    chrome.storage.local.remove(LEGACY_LOCAL_KEYS),
+  ]);
+}
+
+async function createContextMenu() {
+  await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
-    id: "factCheckAI",
-    title: "Fact check with AI",
-    contexts: ["selection"]
+    id: MENU_ID,
+    title: 'Fact-check with Pino',
+    contexts: ['selection'],
+    documentUrlPatterns: ['http://*/*', 'https://*/*'],
   });
+}
+
+async function initializeExtension() {
+  await restrictLocalStorageAccess();
+  await migrateLegacySettings();
+  await createContextMenu();
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  initializeExtension().catch(() => undefined);
 });
+
+chrome.runtime.onStartup.addListener(() => {
+  initializeExtension().catch(() => undefined);
+});
+
+async function sendTabMessage(tabId, message) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch {
+    return null;
+  }
+}
+
+async function getPageContext(tabId, selectedText, tab) {
+  const context = await sendTabMessage(tabId, {
+    action: 'getPageContext',
+    selectedText,
+  });
+
+  return context || {
+    title: tab.title || '',
+    url: tab.url || '',
+    publishedAt: '',
+    nearbyText: '',
+  };
+}
+
+async function callPerplexity({ apiKey, claim, context, model }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(buildFactCheckRequest({ claim, context, model })),
+      signal: controller.signal,
+    });
+
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+
+    if (!response.ok) {
+      throw createApiError(response.status, payload);
+    }
+
+    return parseFactCheckResponse(payload);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('The fact-check timed out. Try a shorter claim or try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function handleFactCheck(info, tab) {
+  if (!tab?.id) return;
+
+  const claim = normalizeText(info.selectionText, 8_000);
+  if (!claim) return;
+
+  const { [API_KEY_STORAGE_KEY]: apiKey, [MODEL_STORAGE_KEY]: storedModel } =
+    await chrome.storage.local.get([API_KEY_STORAGE_KEY, MODEL_STORAGE_KEY]);
+
+  if (typeof apiKey !== 'string' || !apiKey.trim()) {
+    await sendTabMessage(tab.id, {
+      action: 'factCheckError',
+      error: 'Add your Perplexity API key in the Pino toolbar popup first.',
+    });
+    return;
+  }
+
+  await sendTabMessage(tab.id, { action: 'showLoading', claim });
+
+  try {
+    const context = await getPageContext(tab.id, claim, tab);
+    const result = await callPerplexity({
+      apiKey: apiKey.trim(),
+      claim,
+      context,
+      model: storedModel === 'sonar-pro' ? 'sonar-pro' : 'sonar',
+    });
+
+    await sendTabMessage(tab.id, {
+      action: 'factCheckResult',
+      claim,
+      data: result,
+    });
+  } catch (error) {
+    await sendTabMessage(tab.id, {
+      action: 'factCheckError',
+      error: error?.message || 'The fact-check could not be completed.',
+    });
+  }
+}
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "factCheckAI") {
-    chrome.tabs.sendMessage(tab.id, { action: "checkInjection" }, (response) => {
-      if (chrome.runtime.lastError || !response || !response.injected) {
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js']
-        }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Error injecting script: ' + chrome.runtime.lastError.message);
-            return;
-          }
-          sendFactCheckMessage(tab.id, info.selectionText, tab.url);
-        });
-      } else {
-        sendFactCheckMessage(tab.id, info.selectionText, tab.url);
-      }
-    });
-  }
+  if (info.menuItemId !== MENU_ID) return;
+  handleFactCheck(info, tab).catch(() => undefined);
 });
 
-function sendFactCheckMessage(tabId, text, url) {
-  chrome.tabs.sendMessage(tabId, { action: "showLoading" });
-
-  chrome.storage.sync.get('apiKey', async (data) => {
-    if (data.apiKey) {
-      try {
-        const contextText = await fetchPageContent(tabId);
-        const response = await factCheckWithAI(text, contextText, url, data.apiKey);
-        console.log('Sending fact check result to content script:', response);
-        chrome.tabs.sendMessage(tabId, {
-          action: "factCheckResult",
-          data: response
-        });
-      } catch (error) {
-        console.error('Error in fact checking:', error);
-        chrome.tabs.sendMessage(tabId, {
-          action: "factCheckError",
-          error: error.message
-        });
-      }
-    } else {
-      chrome.tabs.sendMessage(tabId, {
-        action: "factCheckError",
-        error: "API Key not found. Please set it in the extension popup."
-      });
-    }
-  });
-}
-
-async function fetchPageContent(tabId) {
-  try {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: () => document.body.innerText
-    });
-    return result;
-  } catch (error) {
-    console.error('Error fetching page content:', error);
-    return '';
-  }
-}
-
-async function factCheckWithAI(text, contextText, url, apiKey) {
-  const options = {
-    method: 'POST',
-    headers: {
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'sonar',
-      messages: [
-        { role: 'system', content: `You are a multilingual fact-checking assistant. Your primary tasks are:
-
-1. Detect the language of the given text.
-2. Respond in the same language as the detected language of the input text.
-3. Focus specifically on fact-checking the given selected text, not the entire article or page.
-4. Find and provide reliable sources for the claims in the selected text, ensuring they are from different domains and strictly related to the subject.
-5. Aim to provide 5-10 sources, prioritizing diversity of domains. Do not invent sources or include unrelated sources.
-6. Provide a truth percentage based on the reliability and consensus of the sources. The percentage should reflect how well the selected text is supported by the sources, not the number of sources found.
-7. Write a fact check (3-4 concise sentences) that directly addresses the claims in the selected text.
-8. Provide context (3-4 concise sentences) that places the selected text within the broader topic or article it's from.
-
-Format your response EXACTLY as follows, in the detected language:
-
-Sources:
-1. [source 1 title](URL)
-2. [source 2 title](URL)
-...
-
-Truth: [percentage]
-
-Fact Check: [your fact check with inline source references, e.g. [1], [2], etc.]
-
-Context: [your context with inline source references, e.g. [1], [2], etc.]
-
-If you cannot find enough reliable sources to fact-check the statement, say so explicitly and explain why. If a claim is widely accepted as common knowledge, state this and provide general reference sources.` },
-        { role: 'user', content: `Fact check the following selected text: "${text}"\n\nBroader context from the page:\n${contextText}\n\nPage URL: ${url}` }
-      ],
-      max_tokens: 2048,
-      temperature: 0.1,
-      return_citations: true
-    })
-  };
-
-  const response = await fetch('https://api.perplexity.ai/chat/completions', options);
-  const result = await response.json();
-
-  console.log('Perplexity API response:', result);
-
-  if (result.choices && result.choices.length > 0) {
-    const content = result.choices[0].message.content;
-    console.log('Perplexity API content:', content);
-    return content;
-  } else {
-    throw new Error('Invalid response from Perplexity API');
-  }
-}
+restrictLocalStorageAccess().catch(() => undefined);

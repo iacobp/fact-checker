@@ -1,22 +1,100 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fact Checker</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="header">
-    <img src="icons/icon48.png" alt="Fact Checker Logo" class="logo">
-    <h1>Fact Checker</h1>
-  </div>
-  <div id="apiKeySection">
-    <label for="apiKey">Enter your Perplexity API Key:</label>
-    <input type="text" id="apiKey" placeholder="API Key">
-    <button id="saveApiKey">Save</button>
-  </div>
-  <div id="status"></div>
-  <script src="popup.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pino - Fact Checker</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand">
+        <img src="icons/icon48.png" alt="" width="44" height="44">
+        <div>
+          <p class="eyebrow">Free and open source</p>
+          <h1>Pino</h1>
+        </div>
+      </header>
+
+      <p class="lede">
+        Highlight a claim, right-click, and check it with your own Perplexity API key.
+        Pino has no account or payment system.
+      </p>
+
+      <section class="setup" aria-labelledby="api-key-heading">
+        <div class="section-heading">
+          <div>
+            <p class="step">Required setup</p>
+            <h2 id="api-key-heading">Perplexity API key</h2>
+          </div>
+          <span id="keyState" class="state">Not saved</span>
+        </div>
+
+        <label for="apiKey">API key</label>
+        <div class="input-row">
+          <input
+            id="apiKey"
+            name="apiKey"
+            type="password"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="Paste your key"
+          >
+          <button id="toggleKey" class="icon-button" type="button" aria-label="Show API key">Show</button>
+        </div>
+        <p class="helper">
+          Stored only in this Chrome profile and sent directly to Perplexity when you run a check.
+        </p>
+
+        <div class="button-row">
+          <button id="saveKey" class="primary" type="button">Save key</button>
+          <button id="changeKey" class="secondary" type="button" hidden>Change</button>
+          <button id="removeKey" class="secondary danger" type="button" hidden>Remove</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+
+        <div class="resource-links">
+          <a href="https://console.perplexity.ai" target="_blank" rel="noopener noreferrer">Get an API key</a>
+          <a href="https://console.perplexity.ai" target="_blank" rel="noopener noreferrer">Check API usage</a>
+        </div>
+      </section>
+
+      <section class="preferences" aria-labelledby="model-heading">
+        <div>
+          <p class="step">Optional</p>
+          <h2 id="model-heading">Search model</h2>
+        </div>
+        <label class="sr-only" for="model">Perplexity model</label>
+        <select id="model" name="model">
+          <option value="sonar">Sonar — lower cost</option>
+          <option value="sonar-pro">Sonar Pro — deeper search</option>
+        </select>
+      </section>
+
+      <section class="how-it-works" aria-labelledby="how-heading">
+        <h2 id="how-heading">How it works</h2>
+        <ol>
+          <li><span>1</span>Select a factual claim on any regular webpage.</li>
+          <li><span>2</span>Right-click and choose “Fact-check with Pino.”</li>
+          <li><span>3</span>Read the analysis and open the original sources.</li>
+        </ol>
+      </section>
+
+      <aside class="privacy-note">
+        Pino sends only the selected claim, limited nearby text, the page title, and a URL without query parameters. It does not send the full page.
+      </aside>
+
+      <footer>
+        <span>AI results can be wrong. Verify important claims.</span>
+        <nav aria-label="Legal">
+          <a href="legal/privacy.html" target="_blank">Privacy</a>
+          <a href="legal/terms.html" target="_blank">Terms</a>
+          <a href="https://github.com/iacobp/fact-checker" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </nav>
+      </footer>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
 </html>

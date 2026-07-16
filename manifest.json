@@ -1,13 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Fact Checker",
-  "version": "1.1",
-  "description": "Fact check highlighted text using AI",
+  "name": "Pino - Fact Checker",
+  "version": "3.0.0",
+  "description": "Fact-check highlighted text with Perplexity. Free extension; bring your own API key.",
   "permissions": [
-    "storage",
     "contextMenus",
-    "activeTab",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "https://api.perplexity.ai/*"
@@ -31,8 +29,28 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
     }
-  ]
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon48.png"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.perplexity.ai"
+  }
 }

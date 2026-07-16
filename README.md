@@ -1,70 +1,60 @@
-# Fact Checker Chrome Extension for Perplexity Pro Users
+# Pino — Fact Checker
 
-## Overview
+Pino is a free, open-source Chrome extension that fact-checks highlighted text with the Perplexity API. There is no Pino account, sign-in, subscription, credit pack, or developer-hosted API. Each user supplies their own Perplexity API key and pays any API charges directly to Perplexity.
 
-This Chrome extension allows Perplexity Pro users to fact-check any text on the web using Perplexity's API. It provides a quick and seamless way to verify information without leaving the current webpage.
+[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/pino-fact-checker/olfaipihfeomkedngnkkmappbojmlmml)
 
-## Key Features
+## How it works
 
-- 🔍 Fact-check any selected text on any webpage
-- 📊 Get a truth percentage for the selected statement
-- ✅ Receive a concise fact-check summary
-- 🌐 See the statement in a broader context
-- 📚 Access sources for further reading
+1. Open the Pino toolbar popup and save a Perplexity API key.
+2. Highlight a factual claim on a regular webpage.
+3. Right-click and choose **Fact-check with Pino**.
+4. Read the verdict, explanation, limitations, and original sources.
 
-## Installation
+Pino uses Perplexity's `sonar` model by default. Users can choose `sonar-pro` for a deeper, typically more expensive search.
 
-1. Download the extension from https://chromewebstore.google.com/detail/fact-checker/olfaipihfeomkedngnkkmappbojmlmml
-2. Click on the extension icon in your Chrome toolbar
-3. Enter your Perplexity API key in the extension settings
+## Privacy model
 
-## How to Use
+- The API key is stored in `chrome.storage.local`, not synced through a Google account.
+- Local storage is restricted to trusted extension contexts on supported Chrome versions.
+- On an explicit fact-check, Pino sends the selected claim, up to 3,000 characters of nearby text, the page title, publication date when available, and the page URL without query parameters.
+- The request goes directly from Chrome to Perplexity over HTTPS.
+- Pino has no analytics, developer backend, advertising, email collection, or remote fact-check history.
+- Results are rendered with DOM text nodes and source URLs returned by Perplexity's `search_results` field.
 
-1. Select / Highlight any text on a webpage
-2. Right-click and select "Fact check with AI"
-3. View the results in a pop-up window
+Read the public [Privacy Policy](https://pino-fact-checker-legal.vercel.app/privacy.html) and [Terms of Use](https://pino-fact-checker-legal.vercel.app/terms.html). The same pages are bundled with the extension for offline access.
 
+## Important limitation
 
-## Credit Usage
+Pino is an AI-assisted research tool, not an authoritative fact-checking organization. Its confidence value describes the model's confidence in its verdict; it is not a mathematical probability that a claim is true. Users should open and evaluate the cited sources before relying on a result.
 
-This extension uses the Perplexity API, which comes with a $5 monthly credit for Pro users. Here's what you need to know:
+## Local development
 
-- Your $5 credit refreshes each month with your Perplexity Pro subscription.
-- The extension uses the llama-3-8b-instruct model, one of the more cost-effective options.
-- The tool is designed to use tokens efficiently, allowing for plenty of monthly fact checks.
+Requirements: Chrome and Node.js 20 or later.
 
-Tips to maximize your credit:
-- Focus on shorter, specific statements for the most efficient use.
-- For longer texts, select the most crucial parts for fact-checking.
-- Monitor your usage through your Perplexity account to understand your personal usage patterns.
+```bash
+npm test
+npm run build
+```
 
-## Development
+To load the extension without packaging:
 
-This extension is built using JavaScript, HTML, and CSS. It uses the the Perplexity API for fact-checking.
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Choose **Load unpacked**.
+4. Select this repository folder.
 
-To set up the development environment:
+The packaged store upload is written to `dist/pino-fact-checker-3.0.0.zip`.
 
-1. Clone this repository
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable "Developer mode"
-4. Click "Load unpacked" and select the cloned repository folder
+## Permissions
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+| Permission | Why it is required |
+|---|---|
+| `contextMenus` | Adds the fact-check action when text is selected. |
+| `storage` | Stores the user's API key and model choice locally. |
+| `https://api.perplexity.ai/*` | Sends user-initiated fact-check requests directly to Perplexity. |
+| Page content script on HTTP/HTTPS | Reads only the selected claim and limited nearby context, then displays the result. |
 
 ## License
 
-This project is licensed under the MIT License 
-
-## Feedback
-
-As this is my first Chrome extension, I'd love to hear your thoughts, suggestions, or any bugs you encounter. Please open an issue or submit a pull request.
-
-## Future Plans
-
-- Support for other browsers (Firefox, Safari, etc.)
-- Enhanced UI/UX
-- Additional fact-checking features
-
-Stay tuned for updates!
+MIT. See [LICENSE](LICENSE).
