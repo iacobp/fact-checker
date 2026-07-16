@@ -19,6 +19,7 @@ const files = [
   'popup.js',
   'styles.css',
 ];
+const legalFiles = ['index.html', 'privacy.html', 'styles.css', 'terms.html'];
 
 await rm(stagingDirectory, { recursive: true, force: true });
 await rm(archivePath, { force: true });
@@ -28,7 +29,10 @@ for (const file of files) {
   await cp(path.join(root, file), path.join(stagingDirectory, file));
 }
 await cp(path.join(root, 'icons'), path.join(stagingDirectory, 'icons'), { recursive: true });
-await cp(path.join(root, 'legal'), path.join(stagingDirectory, 'legal'), { recursive: true });
+await mkdir(path.join(stagingDirectory, 'legal'), { recursive: true });
+for (const file of legalFiles) {
+  await cp(path.join(root, 'legal', file), path.join(stagingDirectory, 'legal', file));
+}
 
 const zip = spawnSync('zip', ['-qr', archivePath, '.'], {
   cwd: stagingDirectory,

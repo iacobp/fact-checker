@@ -4,7 +4,7 @@
   if (window.__pinoFactCheckerLoaded) return;
   window.__pinoFactCheckerLoaded = true;
 
-  const HOST_ID = 'pino-fact-checker-host';
+  const HOST_ID = `pino-fact-checker-host-${chrome.runtime.id}`;
   const MAX_NEARBY_TEXT = 3_000;
   const VERDICT_LABELS = {
     supported: 'Supported',
@@ -88,11 +88,7 @@
   }
 
   function createPanel() {
-    host = document.getElementById(HOST_ID);
-    if (host) {
-      root = host.shadowRoot;
-      return;
-    }
+    if (host && root) return;
 
     host = document.createElement('div');
     host.id = HOST_ID;
