@@ -1,452 +1,508 @@
-(function() {
-  if (window.perplexityFactCheckerInjected) {
-    return;
+(() => {
+  'use strict';
+
+  if (window.__pinoFactCheckerLoaded) return;
+  window.__pinoFactCheckerLoaded = true;
+
+  const HOST_ID = 'pino-fact-checker-host';
+  const MAX_NEARBY_TEXT = 3_000;
+  const VERDICT_LABELS = {
+    supported: 'Supported',
+    mostly_supported: 'Mostly supported',
+    mixed: 'Mixed evidence',
+    mostly_unsupported: 'Mostly unsupported',
+    unsupported: 'Unsupported',
+    unclear: 'Unclear',
+  };
+
+  let host = null;
+  let root = null;
+  let currentClaim = '';
+  let currentResult = null;
+
+  function cleanText(value, limit = MAX_NEARBY_TEXT) {
+    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit);
   }
-  window.perplexityFactCheckerInjected = true;
 
-  let factCheckBox = null;
+  function findSelectedBlock(selectedText) {
+    const selection = window.getSelection();
+    const anchorElement = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode
+      : selection?.anchorNode?.parentElement;
 
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Received message in content script:', request);
-    switch (request.action) {
-      case "checkInjection":
-        sendResponse({ injected: true });
-        break;
-      case "showLoading":
-        showLoading();
-        break;
-      case "factCheckResult":
-        showFactCheckResult(request.data);
-        break;
-      case "factCheckError":
-        showError(request.error);
-        break;
+    const directBlock = anchorElement?.closest(
+      'p, li, blockquote, figcaption, dd, dt, h1, h2, h3, h4, h5, h6, article, section'
+    );
+    if (directBlock && cleanText(directBlock.textContent).includes(cleanText(selectedText, 160))) {
+      return directBlock;
     }
-  });
 
-  function showLoading() {
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
+    const needle = cleanText(selectedText, 120);
+    if (!needle || !document.body) return null;
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const nodeText = cleanText(walker.currentNode.textContent, 500);
+      if (nodeText.includes(needle)) {
+        return walker.currentNode.parentElement?.closest(
+          'p, li, blockquote, figcaption, dd, dt, h1, h2, h3, h4, h5, h6, article, section'
+        );
+      }
     }
-    factCheckBox.innerHTML = `
-      <div class="fact-check-header">
-        <h2>Fact Checker</h2>
-        <button id="close-fact-check">×</button>
-      </div>
-      <p>Loading... This may take a few moments.</p>
-      <div class="loader"></div>
-    `;
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
+    return null;
   }
 
-  function showFactCheckResult(result) {
-    console.log('Showing fact check result:', result);
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
-    }
-    const parsedResult = parseFactCheckResult(result);
-    updateFactCheckBox(parsedResult);
+  function getNearbyText(block, selectedText) {
+    if (!block) return cleanText(selectedText);
+
+    const article = block.closest('article, main, [role="main"]');
+    if (!article) return cleanText(block.textContent);
+
+    const blocks = Array.from(article.querySelectorAll('p, li, blockquote'));
+    const index = blocks.findIndex((candidate) => candidate === block || candidate.contains(block));
+    if (index < 0) return cleanText(block.textContent);
+
+    return cleanText(
+      blocks
+        .slice(Math.max(0, index - 1), index + 3)
+        .map((candidate) => cleanText(candidate.textContent, 1_200))
+        .filter(Boolean)
+        .join('\n')
+    );
   }
 
-  function createFactCheckBox() {
-    const box = document.createElement('div');
-    box.id = 'perplexity-fact-check-box';
-    document.body.appendChild(box);
-    makeDraggableAndResizable(box);
-    return box;
-  }
+  function getPageContext(selectedText) {
+    const block = findSelectedBlock(selectedText);
+    const publishedAt =
+      document.querySelector('meta[property="article:published_time"]')?.content ||
+      document.querySelector('meta[name="date"]')?.content ||
+      document.querySelector('time[datetime]')?.getAttribute('datetime') ||
+      '';
 
-  function updateFactCheckBox(result) {
-    console.log('Updating fact check box with:', result);
-    const truthColor = getTruthColor(result.truthPercentage);
-    console.log('Truth color:', truthColor);
-    factCheckBox.innerHTML = `
-      <div class="fact-check-header">
-        <h2>Fact Checker</h2>
-        <button id="close-fact-check">×</button>
-      </div>
-      <h3 id="truth-percentage">Truth Percentage: <span style="color: ${truthColor} !important;">${result.truthPercentage}</span></h3>
-      <h4>Fact Check:</h4>
-      <p>${result.factCheck}</p>
-      <h4>Context:</h4>
-      <p>${result.context}</p>
-      <h4>Sources:</h4>
-      <ol>
-        ${result.sources.map(source => `<li value="${source.index}"><a href="${source.url}" target="_blank">${source.title}</a></li>`).join('')}
-      </ol>
-      <button id="copy-result">Copy Result</button>
-    `;
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
-    addCopyButtonListener(result);
-  }
-
-  function parseFactCheckResult(result) {
-    console.log("Parsing raw result:", result);
-
-    const sections = result.split('\n\n');
-    const parsedResult = {
-      truthPercentage: 'N/A',
-      factCheck: 'No fact check provided.',
-      context: 'No context provided.',
-      sources: []
+    return {
+      title: cleanText(document.title, 300),
+      url: window.location.href,
+      publishedAt: cleanText(publishedAt, 80),
+      nearbyText: getNearbyText(block, selectedText),
     };
-
-    let currentSection = '';
-
-    sections.forEach(section => {
-      if (section.startsWith('Sources:')) {
-        currentSection = 'sources';
-        const sourceLines = section.split('\n').slice(1);
-        console.log("Source lines:", sourceLines);
-        sourceLines.forEach(line => {
-          const match = line.match(/(\d+)\.\s+(.+)/);
-          if (match) {
-            const [, index, content] = match;
-            const urlMatch = content.match(/\[(.+?)\]\((.+?)\)/);
-            if (urlMatch) {
-              parsedResult.sources.push({ index, title: urlMatch[1], url: urlMatch[2] });
-            } else {
-              parsedResult.sources.push({ index, title: content, url: '#' });
-            }
-          }
-        });
-      } else if (section.startsWith('Truth:')) {
-        currentSection = 'truth';
-        parsedResult.truthPercentage = section.split(':')[1].trim();
-      } else if (section.startsWith('Fact Check:')) {
-        currentSection = 'factCheck';
-        parsedResult.factCheck = section.split(':').slice(1).join(':').trim();
-      } else if (section.startsWith('Context:')) {
-        currentSection = 'context';
-        parsedResult.context = section.split(':').slice(1).join(':').trim();
-      } else if (currentSection === 'factCheck') {
-        parsedResult.factCheck += ' ' + section.trim();
-      } else if (currentSection === 'context') {
-        parsedResult.context += ' ' + section.trim();
-      }
-    });
-
-    console.log("Parsed result:", parsedResult);
-
-    // Replace source references with hyperlinks
-    parsedResult.factCheck = replaceSourceReferences(parsedResult.factCheck, parsedResult.sources);
-    parsedResult.context = replaceSourceReferences(parsedResult.context, parsedResult.sources);
-
-    return parsedResult;
   }
 
-  function replaceSourceReferences(text, sources) {
-    return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (match, p1) => {
-      const indices = p1.split(',').map(s => s.trim());
-      const links = indices.map(index => {
-        const source = sources.find(s => s.index === index);
-        if (source) {
-          return `<a href="${source.url}" target="_blank">[${index}]</a>`;
+  function createPanel() {
+    host = document.getElementById(HOST_ID);
+    if (host) {
+      root = host.shadowRoot;
+      return;
+    }
+
+    host = document.createElement('div');
+    host.id = HOST_ID;
+    host.style.all = 'initial';
+    host.style.position = 'fixed';
+    host.style.inset = '0 auto auto 0';
+    host.style.zIndex = '2147483646';
+    document.documentElement.appendChild(host);
+    root = host.attachShadow({ mode: 'open' });
+
+    const style = document.createElement('style');
+    style.textContent = `
+      :host {
+        all: initial;
+        color-scheme: light dark;
+      }
+      * { box-sizing: border-box; }
+      .panel {
+        --accent: #8a563b;
+        --background: #f5f1ea;
+        --border: #d9d3c8;
+        --ink: #25221e;
+        --muted: #6f685f;
+        --surface: #fffdf8;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 22px 60px rgba(45, 35, 28, 0.22);
+        color: var(--ink);
+        display: none;
+        font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+        font-size: 14px;
+        max-height: min(78vh, 720px);
+        max-width: calc(100vw - 32px);
+        min-height: 250px;
+        min-width: 320px;
+        overflow: auto;
+        position: fixed;
+        resize: both;
+        right: 18px;
+        top: 18px;
+        width: 430px;
+        -webkit-font-smoothing: antialiased;
+      }
+      .panel.visible { display: block; }
+      .header {
+        align-items: center;
+        background: var(--background);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        padding: 13px 15px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .brand { align-items: center; display: flex; gap: 9px; }
+      .brand img { border-radius: 9px; height: 30px; width: 30px; }
+      .brand strong { font-size: 14px; letter-spacing: -0.02em; }
+      .close {
+        align-items: center;
+        background: transparent;
+        border: 0;
+        border-radius: 7px;
+        color: var(--muted);
+        cursor: pointer;
+        display: inline-flex;
+        font: 600 19px/1 system-ui, sans-serif;
+        height: 30px;
+        justify-content: center;
+        width: 30px;
+      }
+      .close:hover { background: rgba(138, 86, 59, 0.08); color: var(--ink); }
+      .content { padding: 18px; }
+      .kicker {
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        margin: 0 0 5px;
+        text-transform: uppercase;
+      }
+      h2, h3, p { margin-top: 0; }
+      h2 { font-size: 22px; letter-spacing: -0.04em; line-height: 1.15; margin-bottom: 8px; }
+      h3 { font-size: 12px; letter-spacing: 0.01em; margin: 20px 0 7px; }
+      p { line-height: 1.58; }
+      .muted { color: var(--muted); }
+      .claim {
+        border-left: 3px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 13px 0 0;
+        max-height: 76px;
+        overflow: hidden;
+        padding-left: 10px;
+      }
+      .skeleton { display: grid; gap: 9px; margin-top: 20px; }
+      .skeleton span {
+        animation: pulse 1.25s ease-in-out infinite alternate;
+        background: #e8e1d6;
+        border-radius: 5px;
+        display: block;
+        height: 12px;
+      }
+      .skeleton span:nth-child(2) { width: 86%; }
+      .skeleton span:nth-child(3) { width: 67%; }
+      @keyframes pulse { from { opacity: 0.46; } to { opacity: 1; } }
+      .verdict-row { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0 18px; }
+      .verdict {
+        background: #eee7dc;
+        border-radius: 999px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+        padding: 6px 10px;
+      }
+      .confidence { color: var(--muted); font-size: 11px; }
+      .section-text { color: var(--ink); margin-bottom: 0; white-space: pre-wrap; }
+      .section-text a { color: var(--accent); font-weight: 700; text-decoration: none; }
+      .section-text a:hover { text-decoration: underline; }
+      .sources { list-style: none; margin: 8px 0 0; padding: 0; }
+      .sources li { border-top: 1px solid var(--border); padding: 10px 0; }
+      .sources a { color: var(--ink); display: block; font-size: 12px; font-weight: 700; line-height: 1.35; text-decoration: none; }
+      .sources a:hover { color: var(--accent); }
+      .source-meta { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; }
+      .notice {
+        background: var(--background);
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.45;
+        margin-top: 16px;
+        padding: 10px 11px;
+      }
+      .actions { display: flex; margin-top: 14px; }
+      .copy {
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 9px;
+        color: #fff;
+        cursor: pointer;
+        font: 700 12px/1 system-ui, sans-serif;
+        min-height: 38px;
+        padding: 0 14px;
+      }
+      .copy:active { transform: translateY(1px); }
+      .error-title { color: #963d34; }
+      @media (prefers-color-scheme: dark) {
+        .panel {
+          --background: #211e1a;
+          --border: #413b34;
+          --ink: #f2ede4;
+          --muted: #b5ada2;
+          --surface: #2a2621;
+          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.4);
         }
-        return `[${index}]`;
-      });
-      return links.join(', ');
-    });
-  }
-
-  function getTruthColor(percentage) {
-    console.log('Received percentage:', percentage);
-    const value = parseInt(percentage);
-    console.log('Parsed value:', value);
-    if (isNaN(value)) {
-      console.log('Returning black due to NaN');
-      return 'black';
-    }
-    if (value >= 80) return 'green';
-    if (value >= 60) return 'goldenrod';
-    if (value >= 40) return 'orange';
-    return 'red';
-  }
-
-  function showError(message) {
-    console.error('Showing error:', message);
-    if (!factCheckBox) {
-      factCheckBox = createFactCheckBox();
-    }
-    factCheckBox.innerHTML = `
-      <div class="fact-check-header">
-        <h2>Error</h2>
-        <button id="close-fact-check">×</button>
-      </div>
-      <p>${message}</p>
+        .skeleton span { background: #403930; }
+        .verdict { background: #40362e; }
+      }
+      @media (max-width: 520px) {
+        .panel {
+          max-height: calc(100dvh - 24px);
+          max-width: calc(100vw - 24px);
+          min-width: 0;
+          right: 12px;
+          top: 12px;
+          width: calc(100vw - 24px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .skeleton span { animation: none; }
+      }
     `;
-    factCheckBox.style.display = 'block';
-    addCloseButtonListener();
+
+    const panel = document.createElement('section');
+    panel.className = 'panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Pino fact-check result');
+
+    const header = document.createElement('header');
+    header.className = 'header';
+    const brand = document.createElement('div');
+    brand.className = 'brand';
+    const logo = document.createElement('img');
+    logo.src = chrome.runtime.getURL('icons/icon48.png');
+    logo.alt = '';
+    const brandName = document.createElement('strong');
+    brandName.textContent = 'Pino Fact Checker';
+    brand.append(logo, brandName);
+
+    const closeButton = document.createElement('button');
+    closeButton.className = 'close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Close fact-check');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', hidePanel);
+    header.append(brand, closeButton);
+
+    const content = document.createElement('div');
+    content.className = 'content';
+    content.id = 'content';
+    panel.append(header, content);
+    root.append(style, panel);
   }
 
-  function addCloseButtonListener() {
-    setTimeout(() => {
-      const closeButton = document.getElementById('close-fact-check');
-      if (closeButton) {
-        console.log('Close button found, adding event listener');
-        closeButton.addEventListener('click', () => {
-          console.log('Close button clicked');
-          if (factCheckBox) {
-            factCheckBox.style.display = 'none';
-          }
-        });
+  function getPanel() {
+    createPanel();
+    return root.querySelector('.panel');
+  }
+
+  function getContent() {
+    return root.querySelector('#content');
+  }
+
+  function showPanel() {
+    getPanel().classList.add('visible');
+  }
+
+  function hidePanel() {
+    getPanel().classList.remove('visible');
+  }
+
+  function addTextElement(parent, tagName, className, text) {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    element.textContent = text;
+    parent.appendChild(element);
+    return element;
+  }
+
+  function appendTextWithCitations(parent, text, sources) {
+    const sourceList = Array.isArray(sources) ? sources : [];
+    const pattern = /\[(\d+)\]/g;
+    let cursor = 0;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      const source = sourceList[Number(match[1]) - 1];
+      if (source?.url) {
+        const link = document.createElement('a');
+        link.href = source.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = match[0];
+        parent.appendChild(link);
       } else {
-        console.log('Close button not found');
+        parent.appendChild(document.createTextNode(match[0]));
       }
-    }, 100);  // 100ms delay
+      cursor = pattern.lastIndex;
+    }
+    parent.appendChild(document.createTextNode(text.slice(cursor)));
   }
 
-  function addCopyButtonListener(result) {
-    const copyButton = document.getElementById('copy-result');
-    if (copyButton) {
-      copyButton.addEventListener('click', () => {
-        const textToCopy = `
-Truth Percentage: ${result.truthPercentage}
+  function renderLoading(claim) {
+    currentClaim = claim || '';
+    currentResult = null;
+    const content = getContent();
+    content.replaceChildren();
+    addTextElement(content, 'p', 'kicker', 'Checking the claim');
+    addTextElement(content, 'h2', '', 'Searching for reliable evidence');
+    addTextElement(content, 'p', 'muted', 'Pino is asking Perplexity to compare the selected claim against current sources.');
+    addTextElement(content, 'p', 'claim', currentClaim);
 
-Fact Check: ${result.factCheck}
-
-Context: ${result.context}
-
-Sources:
-${result.sources.map(source => `${source.index}. ${source.title} - ${source.url}`).join('\n')}
-        `;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-          copyButton.textContent = 'Copied!';
-          setTimeout(() => {
-            copyButton.textContent = 'Copy Result';
-          }, 2000);
-        });
-      });
-    }
+    const skeleton = document.createElement('div');
+    skeleton.className = 'skeleton';
+    skeleton.setAttribute('aria-hidden', 'true');
+    skeleton.append(document.createElement('span'), document.createElement('span'), document.createElement('span'));
+    content.appendChild(skeleton);
+    showPanel();
   }
 
-  function isDarkMode() {
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  function renderError(message) {
+    currentResult = null;
+    const content = getContent();
+    content.replaceChildren();
+    addTextElement(content, 'p', 'kicker', 'Could not complete the check');
+    addTextElement(content, 'h2', 'error-title', 'Pino needs attention');
+    addTextElement(content, 'p', 'section-text', message || 'The fact-check could not be completed.');
+    addTextElement(content, 'p', 'notice', 'Open the Pino toolbar popup to add or replace the API key, then try again.');
+    showPanel();
   }
 
-  function makeDraggableAndResizable(element) {
-    let isResizing = false;
-    let isDragging = false;
-    let startX, startY, startWidth, startHeight, startLeft, startTop;
-    let resizeDirection = '';
+  function addResultSection(content, heading, text, sources) {
+    if (!text) return;
+    addTextElement(content, 'h3', '', heading);
+    const paragraph = document.createElement('p');
+    paragraph.className = 'section-text';
+    appendTextWithCitations(paragraph, text, sources);
+    content.appendChild(paragraph);
+  }
 
-    element.addEventListener('mousedown', startDragOrResize);
-    document.addEventListener('mousemove', dragOrResize);
-    document.addEventListener('mouseup', stopDragOrResize);
-    element.addEventListener('mousemove', updateCursor);
+  function addSources(content, sources) {
+    if (!Array.isArray(sources) || sources.length === 0) return;
+    addTextElement(content, 'h3', '', `Sources (${sources.length})`);
+    const list = document.createElement('ol');
+    list.className = 'sources';
 
-    function startDragOrResize(e) {
-      if (isNearEdge(e, element)) {
-        isResizing = true;
-        resizeDirection = getResizeDirection(e, element);
-      } else {
-        isDragging = true;
+    for (const source of sources) {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = source.title || source.url;
+      item.appendChild(link);
+
+      let hostname = '';
+      try {
+        hostname = new URL(source.url).hostname.replace(/^www\./, '');
+      } catch {
+        hostname = '';
       }
-      startX = e.clientX;
-      startY = e.clientY;
-      startWidth = element.offsetWidth;
-      startHeight = element.offsetHeight;
-      startLeft = element.offsetLeft;
-      startTop = element.offsetTop;
-      e.preventDefault();
+      const meta = [hostname, source.date].filter(Boolean).join(' · ');
+      if (meta) addTextElement(item, 'span', 'source-meta', meta);
+      list.appendChild(item);
     }
+    content.appendChild(list);
+  }
 
-    function dragOrResize(e) {
-      if (isResizing) {
-        resize(e);
-      } else if (isDragging) {
-        drag(e);
-      }
-    }
+  function formatCopyText() {
+    if (!currentResult) return '';
+    const lines = [
+      'Pino Fact Check',
+      `Claim: ${currentClaim}`,
+      `Verdict: ${VERDICT_LABELS[currentResult.verdict] || 'Unclear'}`,
+      `Confidence: ${currentResult.confidence}%`,
+      '',
+      `Summary: ${currentResult.summary}`,
+      currentResult.context ? `Context: ${currentResult.context}` : '',
+      currentResult.limitations ? `Limitations: ${currentResult.limitations}` : '',
+      '',
+      'Sources:',
+      ...(currentResult.sources || []).map((source, index) => `${index + 1}. ${source.title} — ${source.url}`),
+      '',
+      'AI-generated analysis. Verify important claims against the original sources.',
+    ];
+    return lines.filter((line, index) => line || lines[index - 1] !== '').join('\n');
+  }
 
-    function resize(e) {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-
-      if (resizeDirection.includes('w')) {
-        element.style.width = `${Math.max(200, startWidth - dx)}px`;
-        element.style.left = `${startLeft + dx}px`;
-      } else if (resizeDirection.includes('e')) {
-        element.style.width = `${Math.max(200, startWidth + dx)}px`;
-      }
-
-      if (resizeDirection.includes('n')) {
-        element.style.height = `${Math.max(200, startHeight - dy)}px`;
-        element.style.top = `${startTop + dy}px`;
-      } else if (resizeDirection.includes('s')) {
-        element.style.height = `${Math.max(200, startHeight + dy)}px`;
-      }
-    }
-
-    function drag(e) {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      element.style.left = `${startLeft + dx}px`;
-      element.style.top = `${startTop + dy}px`;
-    }
-
-    function stopDragOrResize() {
-      isResizing = false;
-      isDragging = false;
-      resizeDirection = '';
-      element.style.cursor = 'default';
-    }
-
-    function updateCursor(e) {
-      const direction = getResizeDirection(e, element);
-      if (direction) {
-        element.style.cursor = getCursorStyle(direction);
-      } else {
-        element.style.cursor = 'move';
-      }
-    }
-
-    function isNearEdge(e, element) {
-      const rect = element.getBoundingClientRect();
-      const edgeThreshold = 10;
-      return (
-        e.clientX < rect.left + edgeThreshold ||
-        e.clientX > rect.right - edgeThreshold ||
-        e.clientY < rect.top + edgeThreshold ||
-        e.clientY > rect.bottom - edgeThreshold
-      );
-    }
-
-    function getResizeDirection(e, element) {
-      const rect = element.getBoundingClientRect();
-      const edgeThreshold = 10;
-      let direction = '';
-
-      if (e.clientY < rect.top + edgeThreshold) direction += 'n';
-      else if (e.clientY > rect.bottom - edgeThreshold) direction += 's';
-
-      if (e.clientX < rect.left + edgeThreshold) direction += 'w';
-      else if (e.clientX > rect.right - edgeThreshold) direction += 'e';
-
-      return direction;
-    }
-
-    function getCursorStyle(direction) {
-      switch (direction) {
-        case 'n':
-        case 's':
-          return 'ns-resize';
-        case 'e':
-        case 'w':
-          return 'ew-resize';
-        case 'nw':
-        case 'se':
-          return 'nwse-resize';
-        case 'ne':
-        case 'sw':
-          return 'nesw-resize';
-        default:
-          return 'move';
-      }
+  async function copyResult(button) {
+    try {
+      await navigator.clipboard.writeText(formatCopyText());
+      button.textContent = 'Copied';
+      setTimeout(() => {
+        button.textContent = 'Copy result';
+      }, 1_500);
+    } catch {
+      button.textContent = 'Copy failed';
     }
   }
 
-  const style = document.createElement('style');
-  style.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@400;700&display=swap');
+  function renderResult(claim, result) {
+    currentClaim = claim || currentClaim;
+    currentResult = result;
+    const content = getContent();
+    content.replaceChildren();
 
-    #perplexity-fact-check-box {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      width: 300px;
-      height: 400px;
-      min-width: 200px;
-      min-height: 200px;
-      max-width: 80vw;
-      max-height: 80vh;
-      overflow-y: auto;
-      background-color: ${isDarkMode() ? '#333' : 'white'};
-      color: ${isDarkMode() ? 'white' : 'black'} !important;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      padding: 15px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      z-index: 9999;
-      font-family: 'Satoshi', sans-serif !important;
+    addTextElement(content, 'p', 'kicker', 'Evidence review');
+    addTextElement(content, 'h2', '', VERDICT_LABELS[result.verdict] || 'Unclear');
+
+    const verdictRow = document.createElement('div');
+    verdictRow.className = 'verdict-row';
+    addTextElement(verdictRow, 'span', 'verdict', VERDICT_LABELS[result.verdict] || 'Unclear');
+    addTextElement(verdictRow, 'span', 'confidence', `${result.confidence}% confidence in this verdict`);
+    content.appendChild(verdictRow);
+
+    addResultSection(content, 'Summary', result.summary, result.sources);
+    addResultSection(content, 'Context', result.context, result.sources);
+    addResultSection(content, 'Limitations', result.limitations, result.sources);
+    addSources(content, result.sources);
+    addTextElement(
+      content,
+      'p',
+      'notice',
+      'This is AI-generated analysis, not a definitive truth score. Open the sources and verify important claims yourself.'
+    );
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const copyButton = document.createElement('button');
+    copyButton.className = 'copy';
+    copyButton.type = 'button';
+    copyButton.textContent = 'Copy result';
+    copyButton.addEventListener('click', () => copyResult(copyButton));
+    actions.appendChild(copyButton);
+    content.appendChild(actions);
+    showPanel();
+  }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || typeof message !== 'object') return false;
+
+    if (message.action === 'getPageContext') {
+      sendResponse(getPageContext(message.selectedText));
+      return false;
     }
-    #perplexity-fact-check-box * {
-      font-family: 'Satoshi', sans-serif !important;
-      color: ${isDarkMode() ? 'white' : 'black'} !important;
+    if (message.action === 'showLoading') {
+      renderLoading(message.claim);
+      return false;
     }
-    #perplexity-fact-check-box .fact-check-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
+    if (message.action === 'factCheckResult') {
+      renderResult(message.claim, message.data);
+      return false;
     }
-    #perplexity-fact-check-box h2 {
-      margin: 0;
-      text-align: center;
-      width: 100%;
-      font-size: 24px;
+    if (message.action === 'factCheckError') {
+      renderError(message.error);
+      return false;
     }
-    #perplexity-fact-check-box h3 {
-      text-align: center;
-      font-size: 20px;
-      margin-top: 0;
-      margin-bottom: 25px;
-    }
-    #perplexity-fact-check-box h4 {
-      margin-top: 20px;
-      margin-bottom: 10px;
-      font-size: 18px;
-    }
-    #perplexity-fact-check-box p, #perplexity-fact-check-box li {
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    #perplexity-fact-check-box a {
-      color: ${isDarkMode() ? '#add8e6' : '#0000EE'} !important;
-      text-decoration: none;
-    }
-    #perplexity-fact-check-box a:hover {
-      text-decoration: underline;
-    }
-    #close-fact-check {
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: ${isDarkMode() ? 'white' : 'black'} !important;
-      position: absolute;
-      top: 10px;
-      right: 10px;
-    }
-    #copy-result {
-      display: block;
-      margin-top: 15px;
-      padding: 5px 10px;
-      background-color: #4CAF50;
-      color: white !important;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    #copy-result:hover {
-      background-color: #45a049;
-    }
-    .loader {
-      border: 5px solid #f3f3f3;
-      border-top: 5px solid #3498db;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  `;
-  document.head.appendChild(style);
+    return false;
+  });
 })();

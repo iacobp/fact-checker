@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Privacy Policy for the Pino Fact Checker Chrome extension.">
+    <title>Privacy Policy — Pino Fact Checker</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="index.html">Pino Fact Checker</a>
+      <nav aria-label="Legal pages">
+        <a href="privacy.html" aria-current="page">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+    </header>
+    <main>
+      <p class="eyebrow">Privacy Policy</p>
+      <h1>Pino minimizes what leaves your browser.</h1>
+      <p class="summary">
+        Pino does not require an account and does not collect your email address, browsing history, payment details, analytics, or advertising identifiers. Your Perplexity API key is stored in this Chrome profile, not on a Pino server. When you explicitly request a fact-check, Chrome sends the selected claim, limited nearby text, the page title, an available publication date, and the page URL without query parameters directly to Perplexity over HTTPS. Perplexity processes that request under its own privacy policy. Pino does not keep a developer-side copy of the request or result. You can remove the API key at any time from the Pino popup or remove all extension data by uninstalling Pino.
+      </p>
+      <div class="meta">Effective July 16, 2026 · Version 3.0</div>
+
+      <section>
+        <h2>Who operates Pino?</h2>
+        <p>Pino is an independent open-source project maintained by Iacob Paștina in Bucharest, Romania. Questions or deletion requests concerning legacy Pino account data can be sent to <a href="mailto:iacobpastina@gmail.com">iacobpastina@gmail.com</a>.</p>
+
+        <h2>What data does Pino handle?</h2>
+        <h3>Data stored in Chrome</h3>
+        <ul>
+          <li>Your Perplexity API key.</li>
+          <li>Your selected Perplexity model: Sonar or Sonar Pro.</li>
+        </ul>
+        <p>This data is stored with <code>chrome.storage.local</code>. It is not synced through your Google account. On supported Chrome versions, Pino restricts this storage to trusted extension contexts so webpage content scripts cannot read the key.</p>
+
+        <h3>Data sent when you request a fact-check</h3>
+        <ul>
+          <li>The text you explicitly selected.</li>
+          <li>Up to 3,000 characters of nearby text to reduce ambiguity.</li>
+          <li>The page title and an available publication date.</li>
+          <li>The page URL after query parameters and fragments are removed.</li>
+          <li>Your API key in the HTTPS authorization header.</li>
+        </ul>
+        <p>Pino does not send the full article or page. It does not run fact-checks in the background. The transfer happens only after you choose “Fact-check with Pino.”</p>
+
+        <h2>Where does the request go?</h2>
+        <p>The extension sends the request directly from Chrome to the Perplexity API. Pino does not proxy it through a developer server. Perplexity is an independent service and handles the request under the <a href="https://www.perplexity.ai/hub/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Perplexity Privacy Policy</a> and its API terms.</p>
+
+        <h2>Does Pino collect emails or payment details?</h2>
+        <p>No. Version 3 has no Google sign-in, account registration, newsletter signup, checkout, subscription, credit system, or paid unlock. Any API charges are between you and Perplexity; Pino does not receive your Perplexity billing information.</p>
+
+        <h2>How long is data retained?</h2>
+        <p>Pino does not retain fact-check requests or results on a developer server. The API key and model choice remain in Chrome until you remove them or uninstall the extension. Perplexity controls its own API retention practices.</p>
+
+        <h2>What about data from versions before 3.0?</h2>
+        <p>Older Pino versions used Google sign-in, Supabase, and Stripe. Version 3 removes those services from the extension and deletes cached authentication and billing state during migration. Legacy server-side account or transaction records may still need to be retained temporarily for legal, fraud-prevention, accounting, or dispute purposes. Contact the address above to request access or deletion where applicable.</p>
+
+        <h2>How can you delete local data?</h2>
+        <ul>
+          <li>Open the Pino popup and choose <strong>Remove</strong> to delete the API key.</li>
+          <li>Uninstall Pino from Chrome to remove all extension-local data.</li>
+          <li>Revoke the API key in the Perplexity console if you believe it was exposed.</li>
+        </ul>
+
+        <h2>Chrome Web Store Limited Use disclosure</h2>
+        <div class="callout">
+          Pino's use of information received from Chrome APIs complies with the Chrome Web Store User Data Policy, including the Limited Use requirements. Data accessed through extension permissions is used only to provide the user-requested fact-checking feature. It is not used for personalized advertising, sold, transferred for unrelated purposes, or made available for human review except where required for security, support with the user's consent, or legal compliance.
+        </div>
+
+        <h2>Children's privacy</h2>
+        <p>Pino is not directed to children under 13 and does not knowingly collect personal information from children.</p>
+
+        <h2>Changes to this policy</h2>
+        <p>Material changes will be published on this page with a new effective date. Changes that require new Chrome permissions will also appear in the Chrome update flow.</p>
+      </section>
+    </main>
+    <footer><a href="terms.html">Terms of Use</a> · <a href="https://github.com/iacobp/fact-checker">Source code</a></footer>
+  </body>
+</html>

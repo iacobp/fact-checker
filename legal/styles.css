@@ -1,0 +1,105 @@
+:root {
+  color-scheme: light;
+  --accent: #8a563b;
+  --background: #f3efe7;
+  --border: #d8d0c3;
+  --ink: #25221e;
+  --muted: #6f685f;
+  --surface: #fffdf8;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--background);
+  color: var(--ink);
+  font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  line-height: 1.65;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-underline-offset: 3px; }
+
+header,
+main,
+footer {
+  margin: 0 auto;
+  max-width: 860px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  padding-top: 24px;
+}
+
+.brand { color: var(--ink); font-size: 15px; font-weight: 800; text-decoration: none; }
+nav { display: flex; gap: 18px; font-size: 13px; }
+
+main {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 64px;
+  padding-top: 64px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(38px, 7vw, 68px);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 14px 0 24px;
+  max-width: 720px;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 66ch;
+}
+
+.meta {
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  margin: 36px 0 48px;
+  padding-bottom: 20px;
+}
+
+section { max-width: 68ch; }
+h2 { font-size: 24px; letter-spacing: -0.03em; margin: 42px 0 10px; }
+h3 { font-size: 16px; margin: 24px 0 7px; }
+p, li { color: #48433d; }
+li { margin: 8px 0; }
+code { background: #eee7dc; border-radius: 4px; padding: 2px 5px; }
+
+.callout {
+  background: var(--background);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 12px 12px 0;
+  margin: 28px 0;
+  padding: 16px 18px;
+}
+
+footer { color: var(--muted); font-size: 12px; padding-bottom: 48px; }
+
+@media (max-width: 640px) {
+  header { align-items: flex-start; flex-direction: column; gap: 12px; }
+  main { border-left: 0; border-radius: 0; border-right: 0; padding-bottom: 42px; padding-top: 42px; }
+  .summary { font-size: 16px; }
+}
